@@ -8,25 +8,20 @@ do_mounts()
 	mount --bind /sys debian/sys/ > /dev/null
 	mount --bind /sys/fs/bpf/ debian/sys/fs/bpf/ > /dev/null
 	mount --bind /sys/kernel/debug/ debian/sys/kernel/debug/ > /dev/null
-	mount --bind /sys/kernel/debug/tracing/ debian/sys/kernel/debug/tracing/
 
-	# Fix up weirdness with debugfs permission changing because of
-	# above mounts.
-	chmod 0777       /sys/kernel/debug > /dev/null
-	chmod 0777 debian/sys/kernel/debug > /dev/null
-	chmod 0777       /sys/kernel/debug/tracing > /dev/null
-	chmod 0777 debian/sys/kernel/debug/tracing > /dev/null
+	mount --bind /sys/kernel/tracing/ debian/sys/kernel/tracing/
+
+	# some devices doesn't have a /sys/kernel/debug/tracing
+	if [ -d /sys/kernel/debug/tracing ]; then
+		mount --bind /sys/kernel/debug/tracing/ debian/sys/kernel/debug/tracing/
+	fi
 
 	# Mount Android partitions
 	if [ -d /d/ ]; then
 		if [ ! -d debian/d ]; then ln -s /sys/kernel/debug debian/d; fi
 	fi
 
-	if [ -d /data/ ]; then
-		mkdir -p debian/data/
-		mount --bind /data debian/data/
-	fi
-
+	# don't mount /data to avoid data loss
 	if [ -d /system/ ]; then
 		mkdir -p debian/system/
 		mount --bind /system debian/system/
@@ -37,12 +32,15 @@ do_mounts()
 		mount --bind /vendor debian/vendor/
 	fi
 
-  if [ -d /dev/binderfs/ ]; then
-    mkdir -p debian/dev/binderfs
-    mount --bind /dev/binderfs/ debian/dev/binderfs
-  fi
+	if [ -d /dev/binderfs/ ]; then
+		mkdir -p debian/dev/binderfs
+		mount --bind /dev/binderfs/ debian/dev/binderfs
+	fi
 
 }
 
 mount | grep debian > /dev/null
 if [ $? -ne 0 ]; then do_mounts; fi
+
+# unset any PRELOAD in Android environment, otherwise Linux linker cann't handle it.
+unset LD_PRELOAD
